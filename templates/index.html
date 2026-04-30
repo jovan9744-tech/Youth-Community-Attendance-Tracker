@@ -459,6 +459,24 @@ tr:hover td { background: var(--surface-2); }
         <div class="card">
           <div class="card-head">
             <div>
+              <div class="card-title">Perbandingan Tahunan</div>
+              <div class="card-sub">Tren linear kehadiran — <span id="cmp-label">—</span></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+              <div class="tab-group" id="cmp-granularity">
+                <button class="tab-btn active" onclick="setCmpGranularity('weekly',this)">Minggu</button>
+                <button class="tab-btn" onclick="setCmpGranularity('monthly',this)">Bulan</button>
+                <button class="tab-btn" onclick="setCmpGranularity('yearly',this)">Tahun</button>
+              </div>
+              <div class="tab-group" id="cmp-tabs"></div>
+            </div>
+          </div>
+          <div class="chart-wrap" style="height:360px"><canvas id="compareChart"></canvas></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
               <div class="card-title">Kehadiran Bulanan — <span id="bar-year-label">Tahun Ini</span></div>
               <div class="card-sub">Setiap bulan dalam satu tahun</div>
             </div>
@@ -632,7 +650,7 @@ const MN = ["","Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agt","Sep","Okt","Nov"
 const MF = ["","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const PALETTE = ['#C0392B','#D4A017','#16A34A','#2563EB','#7C3AED','#EA580C','#0891B2','#BE185D','#15803D','#B45309','#6D28D9','#0F766E'];
 
-let allData=[], statsData={}, trendChart, typeChart, barChart, currentView="monthly", deleteId=null, importPreviewData=[];
+let allData=[], statsData={}, trendChart, typeChart, barChart, compareChart, currentView="monthly", deleteId=null, importPreviewData=[], cmpYears=[], cmpPair=[];
 
 // ── INIT ──
 document.addEventListener("DOMContentLoaded", () => {
@@ -642,7 +660,10 @@ document.addEventListener("DOMContentLoaded", () => {
   updateGreeting();
 });
 
-async function loadAll() { await Promise.all([fetchData(), fetchStats()]); }
+async function loadAll() {
+  await fetchData();      // allData harus siap dulu
+  await fetchStats();     // baru stats + renderCharts (yg butuh allData)
+}
 
 async function fetchData() {
   try {
@@ -657,7 +678,7 @@ async function fetchStats() {
   try {
     const res = await fetch("/api/stats");
     statsData = await res.json();
-    renderStats(); renderCharts();
+    renderStats(); renderCharts();  // renderCompare() sudah include di sini
   } catch(e) {}
 }
 
@@ -768,7 +789,7 @@ function renderStats() {
 // ── CHARTS ──
 function renderCharts() {
   if (!statsData.monthly) return;
-  renderTrend(); renderType(); renderBar();
+  renderTrend(); renderType(); renderBar(); renderCompare();
 }
 
 function setView(v, el) {
@@ -816,6 +837,135 @@ function renderBar() {
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:"rgba(0,0,0,0.04)"},ticks:{font:{family:"Inter",size:11,weight:"600"},color:"#94A3B8"}},x:{grid:{display:false},ticks:{font:{family:"Inter",size:11,weight:"600"},color:"#94A3B8"}}}}
   });
 }
+
+// ── COMPARE CHART ──
+function linearRegression(values) {
+  const n = values.length;
+  if (n < 2) return values.map(()=>null);
+  const xs = values.map((_,i)=>i);
+  const sumX = xs.reduce((a,b)=>a+b,0);
+  const sumY = values.reduce((a,b)=>a+(b||0),0);
+  const sumXY = xs.reduce((a,i)=>a+i*(values[i]||0),0);
+  const sumX2 = xs.reduce((a,i)=>a+i*i,0);
+  const m = (n*sumXY - sumX*sumY)/(n*sumX2 - sumX*sumX);
+  const b = (sumY - m*sumX)/n;
+  return xs.map(i=>Math.round(m*i+b));
+}
+
+function getDataByYear(year, granularity) {
+  const rows = allData.filter(d=>d.date.startsWith(String(year)));
+  rows.sort((a,b)=>a.date.localeCompare(b.date));
+  if (granularity === 'weekly') {
+    return { labels: rows.map((_,i)=>`M${i+1}`), values: rows.map(r=>r.count) };
+  }
+  if (granularity === 'monthly') {
+    const months = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agt","Sep","Okt","Nov","Des"];
+    const buckets = Array(12).fill(0);
+    rows.forEach(r=>{ const m=parseInt(r.date.slice(5,7))-1; buckets[m]+=r.count; });
+    return { labels: months, values: buckets.map(v=>v||null) };
+  }
+  if (granularity === 'yearly') {
+    const total = rows.reduce((a,r)=>a+r.count,0);
+    return { labels: [String(year)], values: [total] };
+  }
+}
+
+let cmpGranularity = 'weekly';
+
+function renderCompare() {
+  const years = [...new Set(allData.map(d=>parseInt(d.date.slice(0,4))))].sort();
+  if (years.length < 1) return;
+  cmpYears = years;
+  if (!cmpPair.length || !years.includes(cmpPair[0])) {
+    cmpPair = years.length >= 2 ? [years[years.length-2], years[years.length-1]] : [years[0], years[0]];
+  }
+
+  // Build year-pair tabs
+  const tabsEl = document.getElementById("cmp-tabs");
+  if (tabsEl) {
+    const pairs = [];
+    for (let i=0;i<years.length-1;i++) pairs.push([years[i],years[i+1]]);
+    if (pairs.length===0 && years.length===1) pairs.push([years[0],years[0]]);
+    tabsEl.innerHTML = pairs.map(p=>{
+      const active = (p[0]===cmpPair[0]&&p[1]===cmpPair[1])?"active":"";
+      return `<button class="tab-btn ${active}" onclick="setCmpPair(${p[0]},${p[1]},this)">${p[0]} vs ${p[1]}</button>`;
+    }).join("");
+  }
+
+  const y1 = cmpPair[0], y2 = cmpPair[1];
+  const d1 = getDataByYear(y1, cmpGranularity);
+  const d2 = getDataByYear(y2, cmpGranularity);
+
+  let labels, pad1, pad2;
+  if (cmpGranularity === 'yearly') {
+    labels = [String(y1), String(y2)];
+    pad1 = [d1.values[0], null];
+    pad2 = [null, d2.values[0]];
+  } else {
+    const maxLen = Math.max(d1.labels.length, d2.labels.length);
+    labels = d1.labels.length >= d2.labels.length ? d1.labels : d2.labels;
+    pad1 = [...d1.values, ...Array(maxLen-d1.values.length).fill(null)];
+    pad2 = [...d2.values, ...Array(maxLen-d2.values.length).fill(null)];
+  }
+
+  const lr1 = cmpGranularity !== 'yearly' ? linearRegression(pad1.map(v=>v??0)) : [];
+  const lr2 = cmpGranularity !== 'yearly' ? linearRegression(pad2.map(v=>v??0)) : [];
+
+  const granLabel = {weekly:'per Minggu', monthly:'per Bulan', yearly:'Total'}[cmpGranularity];
+  document.getElementById("cmp-label").textContent = `${y1} vs ${y2} — ${granLabel}`;
+
+  const ctx = document.getElementById("compareChart").getContext("2d");
+  if (compareChart) compareChart.destroy();
+
+  const COLORS = {
+    y1:"#2563EB", y1bg:"rgba(37,99,235,0.10)",
+    y2:"#C0392B", y2bg:"rgba(192,57,43,0.10)",
+    lr1:"#16A34A", lr2:"#D97706"
+  };
+
+  const datasets = [
+    {label:String(y1),data:pad1,borderColor:COLORS.y1,backgroundColor:COLORS.y1bg,borderWidth:2.5,pointBackgroundColor:COLORS.y1,pointBorderColor:"#fff",pointBorderWidth:2,pointRadius:5,tension:0.3,fill:false,spanGaps:false},
+    {label:String(y2),data:pad2,borderColor:COLORS.y2,backgroundColor:COLORS.y2bg,borderWidth:2.5,pointBackgroundColor:COLORS.y2,pointBorderColor:"#fff",pointBorderWidth:2,pointRadius:5,tension:0.3,fill:false,spanGaps:false},
+  ];
+  if (cmpGranularity !== 'yearly') {
+    datasets.push(
+      {label:`Linear ${y1}`,data:lr1,borderColor:COLORS.lr1,backgroundColor:"transparent",borderWidth:2,borderDash:[6,4],pointRadius:0,tension:0,fill:false},
+      {label:`Linear ${y2}`,data:lr2,borderColor:COLORS.lr2,backgroundColor:"transparent",borderWidth:2,borderDash:[6,4],pointRadius:0,tension:0,fill:false}
+    );
+  }
+
+  compareChart = new Chart(ctx, {
+    type: cmpGranularity === 'yearly' ? 'bar' : 'line',
+    data:{ labels, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        legend:{display:true,position:"bottom",labels:{font:{family:"Inter",size:11,weight:"600"},padding:16,color:"#64748B",usePointStyle:true,pointStyleWidth:20}},
+        tooltip:{callbacks:{label:c=>{const v=c.parsed.y;return v===null?"—":`${c.dataset.label}: ${v.toLocaleString()}`;}}},
+      },
+      scales:{
+        y:{beginAtZero:false,grid:{color:"rgba(0,0,0,0.04)"},ticks:{font:{family:"Inter",size:11,weight:"600"},color:"#94A3B8"}},
+        x:{grid:{display:false},ticks:{font:{family:"DM Mono",size:11,weight:"500"},color:"#94A3B8",maxRotation:0}}
+      }
+    }
+  });
+}
+
+function setCmpPair(y1,y2,el) {
+  cmpPair=[y1,y2];
+  document.querySelectorAll("#cmp-tabs .tab-btn").forEach(t=>t.classList.remove("active"));
+  el.classList.add("active");
+  renderCompare();
+}
+
+function setCmpGranularity(g,el) {
+  cmpGranularity=g;
+  document.querySelectorAll("#cmp-granularity .tab-btn").forEach(t=>t.classList.remove("active"));
+  el.classList.add("active");
+  renderCompare();
+}
+
 
 // ── TABLE ──
 function populateYearFilter() {
