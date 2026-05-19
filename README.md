@@ -4,13 +4,11 @@
 # Demo Video: https://bit.ly/3Pbz03p
 
 # Preview
-![DASHBOARD](Dashboard-1.png)
-![DASHBOARD 2](<dashboard 2-1.png>)
-![RECAP DATA](datarecap-1.png)
-![INPUT DATA](<Input Data-1.png>)
-![IMPORT EXCEL](<import excel-1.png>)
-
-
+![alt text](Dashboard-1-1.png)
+![alt text](<dashboard 2-1-1.png>)
+![alt text](datarecap-1-1.png)
+![alt text](<Input Data-1-1.png>)
+![alt text](<import excel-1-1.png>)
 
 # Story behind attendance tracker
 For years, Saturday night youth worship attendance data was recorded manually in spreadsheets, paper records, or not recorded at all. 
