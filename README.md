@@ -1,11 +1,16 @@
 # Youth Community Attendance Tracker
 > A web-based youth attendance tracker with data visualization, Excel import/export, and SQLite database.
 
+# Demo Video: https://bit.ly/3Pbz03p
+
 # Preview
-![Dashboard](dashboard.png)
-![Input Data](input.png)
-![Data Recap](datarecap.png)
-![Import Excel](importexcel.png)
+![DASHBOARD](Dashboard-1.png)
+![DASHBOARD 2](<dashboard 2-1.png>)
+![RECAP DATA](datarecap-1.png)
+![INPUT DATA](<Input Data-1.png>)
+![IMPORT EXCEL](<import excel-1.png>)
+
+
 
 # Story behind attendance tracker
 For years, Saturday night youth worship attendance data was recorded manually in spreadsheets, paper records, or not recorded at all. 
