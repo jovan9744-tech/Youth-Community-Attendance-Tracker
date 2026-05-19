@@ -4,13 +4,13 @@
 # Demo Video: https://bit.ly/3Pbz03p
 
 # Preview
-![alt text](Dashboard-1-1.png)
-![alt text](<dashboard 2-1-1.png>)
-![alt text](datarecap-1-1.png)
-![alt text](<Input Data-1-1.png>)
-![alt text](<import excel-1-1.png>)
+![alt text](Dashboard-1.png)
+![alt text](<dashboard%202-1.png>)
+![alt text](datarecap-1.png)
+![alt text](<Input%20Data-1.png>)
+![alt text](<import%20excel-1.png>)
 
-# Story behind attendance tracker
+# Story behind attendance tracker   
 For years, Saturday night youth worship attendance data was recorded manually in spreadsheets, paper records, or not recorded at all. 
 When questions about growth and accountability arose, there was no reliable data.
 I took the initiative to change that. Instead of waiting for someone else to build it, I collaborated with AI to design and develop a web application that the team could use from day one.
